@@ -1,20 +1,43 @@
+import difflib
+import os
+import base64
 import os
 import random
-from random import Random
 from datetime import datetime
-import pymongo
+
 import http3
+import pymongo
 from fastapi import FastAPI, UploadFile, File, Request
-from fastapi.openapi.models import Response
 from http3 import Headers
+from pydantic import BaseModel, Field
 from pymongo.collection import Collection
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
-
-from pydantic import BaseModel, Field
+from Crypto.Cipher import AES
 
 client = pymongo.MongoClient("localhost", 27017)
 auth_collection: Collection = client.diary.auth
+key = "aYXfLj0MB9V5az9Ce8l+7A=="
+decoded = base64.b64decode(key)
+# convert from bytes to string and display
+data = "DDFED2B991D7AEE62D9A8136AD98B737"
+
+
+
+def encrypt(text):
+    # Secret key
+    # Text to be encrypted
+    # Initialize encryptor
+    aes = AES.new(decoded, AES.MODE_ECB)
+    # Aes encryption to b
+    message = text.encode()
+    offset = 16 - len(message) % 16
+    message = message + (offset * chr(offset)).encode()
+    encrypt_aes = aes.encrypt(message)
+    # Converted into a string with base64
+    encrypted_text = str(base64.encodebytes(encrypt_aes), encoding='UTF-8')
+    return encrypted_text.replace("\n", "")
+
 
 
 class Q(BaseModel):
@@ -92,7 +115,7 @@ async def show_image(uuid: str):
 @app.post("/journals/diaryday", tags=["Diary day"])
 async def DiaryDay(query: Q):
     r = await client.post(f"{base_url}/journals/diaryday",
-                          json={"apikey": apikey, "guid": query.guid, "date": query.date, "from": query.froM,
+                          json={"apikey": encrypt(query.guid), "guid": query.guid, "date": query.date, "from": query.froM,
                                 "to": query.to},
                           headers=Headers({"Content-Type": "application/json"}))
     print(r.headers)
@@ -102,7 +125,7 @@ async def DiaryDay(query: Q):
 @app.post("/journals/periodmarks", tags=["Period marks"])
 async def PeriodMarks(query: Q):
     r = await client.post(f"{base_url}/journals/periodmarks",
-                          json={"apikey": apikey, "guid": query.guid, "date": query.date, "from": query.froM,
+                          json={"apikey": encrypt(query.guid), "guid": query.guid, "date": query.date, "from": query.froM,
                                 "to": query.to},
                           headers=Headers({"Content-Type": "application/json"}))
     print(r.headers)
@@ -112,7 +135,7 @@ async def PeriodMarks(query: Q):
 @app.post("/journals/allperiods", tags=["All periods"])
 async def AllPeriods(query: Q):
     r = await client.post(f"{base_url}/journals/allperiods",
-                          json={"apikey": apikey, "guid": query.guid, "date": query.date, "from": query.froM,
+                          json={"apikey": encrypt(query.guid), "guid": query.guid, "date": query.date, "from": query.froM,
                                 "to": query.to},
                           headers=Headers({"Content-Type": "application/json"}))
     print(r.headers)
@@ -122,7 +145,7 @@ async def AllPeriods(query: Q):
 @app.post("/journals/marksbyperiod", tags=["Marks by period"])
 async def MarksByPeriod(query: Q):
     r = await client.post(f"{base_url}/journals/marksbyperiod",
-                          json={"apikey": apikey, "guid": query.guid, "date": query.date, "from": query.froM,
+                          json={"apikey": encrypt(query.guid), "guid": query.guid, "date": query.date, "from": query.froM,
                                 "to": query.to},
                           headers=Headers({"Content-Type": "application/json"}))
     print(r.headers)
@@ -132,7 +155,7 @@ async def MarksByPeriod(query: Q):
 @app.post("/journals/allmarks", tags=["All marks"])
 async def AllMarks(query: Q):
     r = await client.post(f"{base_url}/journals/allmarks",
-                          json={"apikey": apikey, "guid": query.guid, "date": query.date, "from": query.froM,
+                          json={"apikey": encrypt(query.guid), "guid": query.guid, "date": query.date, "from": query.froM,
                                 "to": query.to},
                           headers=Headers({"Content-Type": "application/json"}))
     print(r.headers)
@@ -164,6 +187,7 @@ async def Verify(code: int):
     user.pop("_id")
     return user
 
+
 @app.get("/auth/login", tags=["auth"])
 async def LogIn(code: int):
     user = auth_collection.find_one({"key": code})
@@ -173,6 +197,7 @@ async def LogIn(code: int):
     auth_collection.update_one({"key": code},
                                {"$set": {"last_login": datetime.now()}})
     return user
+
 
 @app.delete("/auth/logout", tags=["auth"])
 async def LogOut(code: int):
