@@ -17,7 +17,7 @@ from Crypto.Cipher import AES
 
 client = pymongo.MongoClient("localhost", 27017)
 auth_collection: Collection = client.diary.auth
-key = "aYXfLj0MB9V5az9Ce8l+7A=="
+key = "aYXfLjOMB9V5az9Ce8l+7A=="
 decoded = base64.b64decode(key)
 # convert from bytes to string and display
 data = "DDFED2B991D7AEE62D9A8136AD98B737"
@@ -84,6 +84,7 @@ base_url = "http://213.145.5.42:8090"
 apikey = "Ez9FApAFRsjwBmXUzFxB8niuPdlbmvIlsQhfzwPH/y8NZNmRwZXTdd9fj7cTliD0"
 app.add_middleware(
     CORSMiddleware,
+    allow_methods=["DELETE", "GET", "POST", "PUT", "OPTIONS"],
     allow_origins=['*']
 )
 
