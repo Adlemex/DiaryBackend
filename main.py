@@ -4,26 +4,31 @@ import base64
 import os
 import random
 from datetime import datetime
-
 import http3
 import pymongo
 from fastapi import FastAPI, UploadFile, File, Request
 from http3 import Headers
+from jpype import JClass, JPackage
 from pydantic import BaseModel, Field
 from pymongo.collection import Collection
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
 from Crypto.Cipher import AES
-
 client = pymongo.MongoClient("localhost", 27017)
 auth_collection: Collection = client.diary.auth
 key = "aYXfLjOMB9V5az9Ce8l+7A=="
 decoded = base64.b64decode(key)
-# convert from bytes to string and display
+#import jpype
+#import jpype.imports
+#
+#jpype.addClassPath("./x2dsf")
+#jpype.startJVM("""-Djava.library.path=D:/Unity/DiaryBackend/""")
+#testPkg = JPackage('x2')
+#Test = testPkg.X()
+
+
 data = "DDFED2B991D7AEE62D9A8136AD98B737"
-
-
-
+#print(Test.m0do(str(data)))
 def encrypt(text):
     # Secret key
     # Text to be encrypted
