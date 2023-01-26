@@ -9,7 +9,6 @@ import http3
 import pymongo
 from fastapi import FastAPI, UploadFile, File, Request, HTTPException
 from http3 import Headers
-from jpype import JClass, JPackage
 from pydantic import BaseModel, Field
 from pymongo.collection import Collection
 from starlette.middleware.cors import CORSMiddleware
