@@ -3,10 +3,11 @@ import os
 import base64
 import os
 import random
+import uuid
 from datetime import datetime
 import http3
 import pymongo
-from fastapi import FastAPI, UploadFile, File, Request
+from fastapi import FastAPI, UploadFile, File, Request, HTTPException
 from http3 import Headers
 from jpype import JClass, JPackage
 from pydantic import BaseModel, Field
@@ -14,8 +15,12 @@ from pymongo.collection import Collection
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
 from Crypto.Cipher import AES
+
+from secret import secretize
+
 client = pymongo.MongoClient("localhost", 27017)
 auth_collection: Collection = client.diary.auth
+tg_collection: Collection = client.diary.tg
 key = "aYXfLjOMB9V5az9Ce8l+7A=="
 decoded = base64.b64decode(key)
 #import jpype
@@ -50,6 +55,9 @@ class Q(BaseModel):
     date: str = ""
     froM: str = Field(alias="from", default="")
     to: str = ""
+
+class TgGetCode(BaseModel):
+    data: str = ""
 
 
 tags_metadata = [
@@ -220,3 +228,22 @@ async def SessionsList(guid: str):
         user.pop("_id")
         res.append(user)
     return res
+
+@app.post("/tg_auth/get_code", tags=["auth"])
+async def GetCode(body: TgGetCode):
+    code = uuid.uuid4().hex
+    tg_collection.insert_one({"code": code, "data": body.data, "tg_id": 0})
+    return code
+
+@app.get("/tg_auth/login", tags=["auth"])
+async def TgLogIn(code: str, tg_id: int):
+    tg_collection.update_one({"code": code}, {"$set": {"tg_id": tg_id}})
+    return "success"
+
+@app.get("/tg_auth/info", tags=["auth"])
+async def TgLogIn(tg_id: int, sign: str):
+    user = tg_collection.find_one({"tg_id": tg_id})
+    if sign != secretize(tg_id): raise HTTPException(400, "Неверная подпись")
+    if user == None: raise HTTPException(404, "Не авторизован")
+    return user.get("data")
+
