@@ -14,25 +14,38 @@ from pymongo.collection import Collection
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
 from Crypto.Cipher import AES
-
+import schedule
+import time
 from secret import secretize
+from multiprocessing import Process
+import uvicorn
 
+# global process variable
+proc = None
 client = pymongo.MongoClient("localhost", 27017)
 auth_collection: Collection = client.diary.auth
+notify_collection: Collection = client.diary.notify
 tg_collection: Collection = client.diary.tg
 key = "aYXfLjOMB9V5az9Ce8l+7A=="
 decoded = base64.b64decode(key)
-#import jpype
-#import jpype.imports
+# import jpype
+# import jpype.imports
 #
-#jpype.addClassPath("./x2dsf")
-#jpype.startJVM("""-Djava.library.path=D:/Unity/DiaryBackend/""")
-#testPkg = JPackage('x2')
-#Test = testPkg.X()
+# jpype.addClassPath("./x2dsf")
+# jpype.startJVM("""-Djava.library.path=D:/Unity/DiaryBackend/""")
+# testPkg = JPackage('x2')
+# Test = testPkg.X()
 
+import firebase_admin
+from firebase_admin import credentials, messaging
+
+cred = credentials.Certificate("./diary-b2ba2-firebase-adminsdk-nvon7-1be3dce4d4.json")
+default_app = firebase_admin.initialize_app(cred)
 
 data = "DDFED2B991D7AEE62D9A8136AD98B737"
-#print(Test.m0do(str(data)))
+
+
+# print(Test.m0do(str(data)))
 def encrypt(text):
     # Secret key
     # Text to be encrypted
@@ -48,12 +61,12 @@ def encrypt(text):
     return encrypted_text.replace("\n", "")
 
 
-
 class Q(BaseModel):
     guid: str = ""
     date: str = ""
     froM: str = Field(alias="from", default="")
     to: str = ""
+
 
 class TgGetCode(BaseModel):
     data: str = ""
@@ -128,7 +141,8 @@ async def show_image(uuid: str):
 @app.post("/journals/diaryday", tags=["Diary day"])
 async def DiaryDay(query: Q):
     r = await client.post(f"{base_url}/journals/diaryday",
-                          json={"apikey": encrypt(query.guid), "guid": query.guid, "date": query.date, "from": query.froM,
+                          json={"apikey": encrypt(query.guid), "guid": query.guid, "date": query.date,
+                                "from": query.froM,
                                 "to": query.to},
                           headers=Headers({"Content-Type": "application/json"}))
     print(r.headers)
@@ -138,7 +152,8 @@ async def DiaryDay(query: Q):
 @app.post("/journals/periodmarks", tags=["Period marks"])
 async def PeriodMarks(query: Q):
     r = await client.post(f"{base_url}/journals/periodmarks",
-                          json={"apikey": encrypt(query.guid), "guid": query.guid, "date": query.date, "from": query.froM,
+                          json={"apikey": encrypt(query.guid), "guid": query.guid, "date": query.date,
+                                "from": query.froM,
                                 "to": query.to},
                           headers=Headers({"Content-Type": "application/json"}))
     print(r.headers)
@@ -148,7 +163,8 @@ async def PeriodMarks(query: Q):
 @app.post("/journals/allperiods", tags=["All periods"])
 async def AllPeriods(query: Q):
     r = await client.post(f"{base_url}/journals/allperiods",
-                          json={"apikey": encrypt(query.guid), "guid": query.guid, "date": query.date, "from": query.froM,
+                          json={"apikey": encrypt(query.guid), "guid": query.guid, "date": query.date,
+                                "from": query.froM,
                                 "to": query.to},
                           headers=Headers({"Content-Type": "application/json"}))
     print(r.headers)
@@ -158,7 +174,8 @@ async def AllPeriods(query: Q):
 @app.post("/journals/marksbyperiod", tags=["Marks by period"])
 async def MarksByPeriod(query: Q):
     r = await client.post(f"{base_url}/journals/marksbyperiod",
-                          json={"apikey": encrypt(query.guid), "guid": query.guid, "date": query.date, "from": query.froM,
+                          json={"apikey": encrypt(query.guid), "guid": query.guid, "date": query.date,
+                                "from": query.froM,
                                 "to": query.to},
                           headers=Headers({"Content-Type": "application/json"}))
     print(r.headers)
@@ -168,7 +185,8 @@ async def MarksByPeriod(query: Q):
 @app.post("/journals/allmarks", tags=["All marks"])
 async def AllMarks(query: Q):
     r = await client.post(f"{base_url}/journals/allmarks",
-                          json={"apikey": encrypt(query.guid), "guid": query.guid, "date": query.date, "from": query.froM,
+                          json={"apikey": encrypt(query.guid), "guid": query.guid, "date": query.date,
+                                "from": query.froM,
                                 "to": query.to},
                           headers=Headers({"Content-Type": "application/json"}))
     print(r.headers)
@@ -228,16 +246,19 @@ async def SessionsList(guid: str):
         res.append(user)
     return res
 
+
 @app.post("/tg_auth/get_code", tags=["auth"])
 async def GetCode(body: TgGetCode):
     code = uuid.uuid4().hex
     tg_collection.insert_one({"code": code, "data": body.data, "tg_id": 0})
     return code
 
+
 @app.get("/tg_auth/login", tags=["auth"])
 async def TgLogIn(code: str, tg_id: int):
     tg_collection.update_one({"code": code}, {"$set": {"tg_id": tg_id}})
     return "success"
+
 
 @app.get("/tg_auth/info", tags=["auth"])
 async def TgLogIn(tg_id: int, sign: str):
@@ -246,3 +267,67 @@ async def TgLogIn(tg_id: int, sign: str):
     if user == None: raise HTTPException(404, "Не авторизован")
     return user.get("data")
 
+
+#@app.get("/notify/register", tags=["notify"])
+#async def NotifyReg(token: str):
+#    if notify_collection.find_one({"token": token}) is not None: return
+#    res = notify_collection.insert_one({"token": token})
+#    return res.deleted_count > 0
+
+
+@app.get("/notify/kr", tags=["notify"])
+async def NotifyKr(token: str, time: int = 18):
+    #"""if notify_collection.find_one({"token": token}) is not None: raise HTTPException(400)
+    #res = notify_collection.update_one({"token": token}, {"$set": {"kr": time}})
+    #return "success" """
+    topic = "kr_" + str(time)
+    response = messaging.subscribe_to_topic(token, topic)
+    if response.failure_count > 0: raise HTTPException(400, "Неверный токен")
+
+
+@app.delete("/notify/kr", tags=["notify"])
+async def NotifyKr(token: str, time: int = 18):
+    #"""if notify_collection.find_one({"token": token}) is not None: raise HTTPException(400)
+    #res = notify_collection.update_one({"token": token}, {"$set": {"kr": time}})
+    #return "success" """
+    topic = "kr_" + str(time)
+    response = messaging.unsubscribe_from_topic(token, topic)
+    if response.failure_count > 0: raise HTTPException(400, "Неверный токен")
+
+
+def job(time: int):
+    #items = list(notify_collection.find({"kr":  time}))
+    #print(items)
+    topic = "kr_" + str(time)
+    message = messaging.Message(
+        notification=messaging.Notification(
+            title="Тест",
+            body="Тест"
+        ),
+        topic=topic
+    )
+    messaging.send(message)
+
+
+schedule.every().day.at("18:00").do(job, (18))
+#schedule.every(4).seconds.do(job, (11))
+
+def sheduler():
+    while 1:
+        schedule.run_pending()
+        time.sleep(1)
+
+
+def stop():
+    global proc
+    if proc:
+        proc.join(0.25)
+
+
+if __name__ == '__main__':
+    # create process instance and set the target to run function.
+    # use daemon mode to stop the process whenever the program stopped.
+    proc = Process(target=sheduler, args=(), daemon=True)
+    proc.start()
+    uvicorn.run(app, host="0.0.0.0", port=8090, root_path="/api")
+    stop()
