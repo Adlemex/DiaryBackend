@@ -300,18 +300,15 @@ def job(time: int):
     #print(items)
     topic = "kr_" + str(time)
     message = messaging.Message(
-        notification=messaging.Notification(
-            title="Тест",
-            body="Тест"
-        ),
+        data={"type": "kr"},
         topic=topic
     )
     messaging.send(message)
 
 
 schedule.every().day.at("18:00").do(job, (18))
-#schedule.every(4).seconds.do(job, (11))
-
+#schedule.every(30).seconds.do(job, (18))
+#job(18)
 def sheduler():
     while 1:
         schedule.run_pending()
