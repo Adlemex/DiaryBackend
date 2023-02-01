@@ -14,12 +14,12 @@ from pymongo.collection import Collection
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
 from Crypto.Cipher import AES
-import schedule
+from apscheduler.schedulers.background import BackgroundScheduler
 import time
 from secret import secretize
 from multiprocessing import Process
 import uvicorn
-
+scheduler = BackgroundScheduler()
 # global process variable
 proc = None
 client = pymongo.MongoClient("localhost", 27017)
@@ -295,10 +295,10 @@ async def NotifyKr(token: str, time: int = 18):
     if response.failure_count > 0: raise HTTPException(400, "Неверный токен")
 
 
-def job(time: int):
+def job(time: int, type: str):
     #items = list(notify_collection.find({"kr":  time}))
-    #print(items)
     topic = "kr_" + str(time)
+    print(topic)
     message = messaging.Message(
         data={"type": "kr"},
         topic=topic
@@ -306,25 +306,14 @@ def job(time: int):
     messaging.send(message)
 
 
-schedule.every().day.at("18:00").do(job, (18))
+
+#schedule.every(1).day.at("19:44").do(print, (18))
 #schedule.every(30).seconds.do(job, (18))
 #job(18)
-def sheduler():
-    while 1:
-        schedule.run_pending()
-        time.sleep(1)
-
-
-def stop():
-    global proc
-    if proc:
-        proc.join(0.25)
-
-
+scheduler.add_job(job, trigger='cron', hour=18, minute=0, args=(18, "kr"))
 if __name__ == '__main__':
     # create process instance and set the target to run function.
     # use daemon mode to stop the process whenever the program stopped.
-    proc = Process(target=sheduler, args=(), daemon=True)
-    proc.start()
+    scheduler.start()
     uvicorn.run(app, host="0.0.0.0", port=8090, root_path="/api")
-    stop()
+    pass
