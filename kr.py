@@ -5,6 +5,6 @@ default_app = firebase_admin.initialize_app(cred)
 topic = "kr_" + str(18)
 print(topic)
 message = messaging.Message(
-        data={"type": "kr_test"},
+        data={"type": "kr"},
         topic=topic)
 messaging.send(message)
