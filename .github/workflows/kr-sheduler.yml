@@ -31,8 +31,7 @@ jobs:
         FIREBASE: ${{ secrets.FIREBASE_KEY }}
       run: |
         echo "$FIREBASE" > diary-b2ba2-firebase-adminsdk-nvon7-1be3dce4d4.json
-    - name: Create secret file
-      env:
-        FIREBASE: ${{ secrets.FIREBASE_KEY }}
+    - name: RUN
       run: |
+        pip freeze
         python kr.py
