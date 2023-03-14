@@ -1,8 +1,7 @@
-import difflib
-import os
-import base64
 import os
 import random
+import string
+import time
 import uuid
 from datetime import datetime
 import http3
@@ -13,28 +12,20 @@ from pydantic import BaseModel, Field
 from pymongo.collection import Collection
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
-from Crypto.Cipher import AES
 from apscheduler.schedulers.background import BackgroundScheduler
-import time
+import base64
+from models.Q import Q
+from models.TgGetCode import TgGetCode
 from secret import secretize
-from multiprocessing import Process
 import uvicorn
 scheduler = BackgroundScheduler()
 # global process variable
 proc = None
 client = pymongo.MongoClient("localhost", 27017)
 auth_collection: Collection = client.diary.auth
+pda_collection: Collection = client.diary.pda
 notify_collection: Collection = client.diary.notify
 tg_collection: Collection = client.diary.tg
-key = "aYXfLjOMB9V5az9Ce8l+7A=="
-decoded = base64.b64decode(key)
-# import jpype
-# import jpype.imports
-#
-# jpype.addClassPath("./x2dsf")
-# jpype.startJVM("""-Djava.library.path=D:/Unity/DiaryBackend/""")
-# testPkg = JPackage('x2')
-# Test = testPkg.X()
 
 import firebase_admin
 from firebase_admin import credentials, messaging
@@ -42,34 +33,20 @@ from firebase_admin import credentials, messaging
 cred = credentials.Certificate("./diary-b2ba2-firebase-adminsdk-nvon7-1be3dce4d4.json")
 default_app = firebase_admin.initialize_app(cred)
 
-data = "DDFED2B991D7AEE62D9A8136AD98B737"
+def XORcipher(plaintext):
+    key = "ru.integrics.mobileschool"
+    output = ""
+    for i, character in enumerate(plaintext):
+        output += chr(ord(character) ^ ord(key[i % len(key)]))
+    return output
+def crypt(data):
+    return base64.b64encode(XORcipher(data[:len(data)//2]).encode()).decode()
 
 
-# print(Test.m0do(str(data)))
-def encrypt(text):
-    # Secret key
-    # Text to be encrypted
-    # Initialize encryptor
-    aes = AES.new(decoded, AES.MODE_ECB)
-    # Aes encryption to b
-    message = text.encode()
-    offset = 16 - len(message) % 16
-    message = message + (offset * chr(offset)).encode()
-    encrypt_aes = aes.encrypt(message)
-    # Converted into a string with base64
-    encrypted_text = str(base64.encodebytes(encrypt_aes), encoding='UTF-8')
-    return encrypted_text.replace("\n", "")
 
 
-class Q(BaseModel):
-    guid: str = ""
-    date: str = ""
-    froM: str = Field(alias="from", default="")
-    to: str = ""
 
 
-class TgGetCode(BaseModel):
-    data: str = ""
 
 
 tags_metadata = [
@@ -106,7 +83,6 @@ tags_metadata = [
 app = FastAPI(title="PskoveduAPI", description="Прокси для api pskovedu", tags_metadata=tags_metadata)
 client = http3.AsyncClient()
 base_url = "http://213.145.5.42:8090"
-apikey = "Ez9FApAFRsjwBmXUzFxB8niuPdlbmvIlsQhfzwPH/y8NZNmRwZXTdd9fj7cTliD0"
 app.add_middleware(
     CORSMiddleware,
     allow_methods=["DELETE", "GET", "POST", "PUT", "OPTIONS"],
@@ -118,32 +94,17 @@ auths = {}
 
 @app.get("/")
 async def root():
-    return {"message": "pskovedu.ml is a top site"}
-
-
-@app.post("/images/{uuid}", tags=["Images"])
-async def create_upload_file(uuid: str, file: UploadFile = File(...)):
-    contents = await file.read()
-    with open("/home/adlem/DiaryBackend/" + uuid + ".jpg", "wb") as f:
-        f.write(contents)
-    return {"filename": file}
-
-
-@app.get("/images/{uuid}", tags=["Images"])
-async def show_image(uuid: str):
-    if os.path.isfile("/home/adlem/DiaryBackend/" + uuid + ".jpg"):
-        return FileResponse(
-            "/home/adlem/DiaryBackend/" + uuid + ".jpg")
-    else:
-        return None
-
+    return {"message": "opensource top"}
 
 @app.post("/journals/diaryday", tags=["Diary day"])
 async def DiaryDay(query: Q):
+    if pda_collection.find_one({"guid": query.guid}) == None: pdakey = dict(await get_pda(query.guid)).get("pdakey")
+    else: pdakey = pda_collection.find_one({"guid": query.guid}).get("pdakey")
+    print(pdakey)
     r = await client.post(f"{base_url}/journals/diaryday",
-                          json={"apikey": encrypt(query.guid), "guid": query.guid, "date": query.date,
+                          json={"apikey": crypt(query.guid), "guid": query.guid, "date": query.date,
                                 "from": query.froM,
-                                "to": query.to},
+                                "to": query.to, "pdakey": pdakey},
                           headers=Headers({"Content-Type": "application/json"}))
     print(r.headers)
     return r.json()
@@ -151,10 +112,12 @@ async def DiaryDay(query: Q):
 
 @app.post("/journals/periodmarks", tags=["Period marks"])
 async def PeriodMarks(query: Q):
+    if pda_collection.find_one({"guid": query.guid}) == None: pdakey = dict(await get_pda(query.guid)).get("pdakey")
+    else: pdakey = pda_collection.find_one({"guid": query.guid}).get("pdakey")
     r = await client.post(f"{base_url}/journals/periodmarks",
-                          json={"apikey": encrypt(query.guid), "guid": query.guid, "date": query.date,
+                          json={"apikey": crypt(query.guid), "guid": query.guid, "date": query.date,
                                 "from": query.froM,
-                                "to": query.to},
+                                "to": query.to, "pdakey": pdakey},
                           headers=Headers({"Content-Type": "application/json"}))
     print(r.headers)
     return r.json()
@@ -162,10 +125,12 @@ async def PeriodMarks(query: Q):
 
 @app.post("/journals/allperiods", tags=["All periods"])
 async def AllPeriods(query: Q):
+    if pda_collection.find_one({"guid": query.guid}) == None: pdakey = dict(await get_pda(query.guid)).get("pdakey")
+    else: pdakey = pda_collection.find_one({"guid": query.guid}).get("pdakey")
     r = await client.post(f"{base_url}/journals/allperiods",
-                          json={"apikey": encrypt(query.guid), "guid": query.guid, "date": query.date,
+                          json={"apikey": crypt(query.guid), "guid": query.guid, "date": query.date,
                                 "from": query.froM,
-                                "to": query.to},
+                                "to": query.to, "pdakey": pdakey},
                           headers=Headers({"Content-Type": "application/json"}))
     print(r.headers)
     return r.json()
@@ -173,10 +138,12 @@ async def AllPeriods(query: Q):
 
 @app.post("/journals/marksbyperiod", tags=["Marks by period"])
 async def MarksByPeriod(query: Q):
+    if pda_collection.find_one({"guid": query.guid}) == None: pdakey = dict(await get_pda(query.guid)).get("pdakey")
+    else: pdakey = pda_collection.find_one({"guid": query.guid}).get("pdakey")
     r = await client.post(f"{base_url}/journals/marksbyperiod",
-                          json={"apikey": encrypt(query.guid), "guid": query.guid, "date": query.date,
+                          json={"apikey": crypt(query.guid), "guid": query.guid, "date": query.date,
                                 "from": query.froM,
-                                "to": query.to},
+                                "to": query.to, "pdakey": pdakey},
                           headers=Headers({"Content-Type": "application/json"}))
     print(r.headers)
     return r.json()
@@ -184,14 +151,36 @@ async def MarksByPeriod(query: Q):
 
 @app.post("/journals/allmarks", tags=["All marks"])
 async def AllMarks(query: Q):
+    if pda_collection.find_one({"guid": query.guid}) == None: pdakey = dict(await get_pda(query.guid)).get("pdakey")
+    else: pdakey = pda_collection.find_one({"guid": query.guid}).get("pdakey")
     r = await client.post(f"{base_url}/journals/allmarks",
-                          json={"apikey": encrypt(query.guid), "guid": query.guid, "date": query.date,
+                          json={"apikey": crypt(query.guid), "guid": query.guid, "date": query.date,
                                 "from": query.froM,
-                                "to": query.to},
+                                "to": query.to, "pdakey": pdakey},
                           headers=Headers({"Content-Type": "application/json"}))
     print(r.headers)
     return r.json()
 
+@app.post("/pda/getpdakey", tags=["PDA"])
+async def get_pda(guid):
+    r = await client.post(f"{base_url}/pda/getpdakey",
+                          json={"apikey": "","sysguid": guid},
+                          headers=Headers({"Content-Type": "application/json"}))
+    if dict(r.json()).get("status") == "not found":
+        raise HTTPException(404, "Вы не потвердили соглашение на обработку данных (PDA)")
+    if pda_collection.find_one({"guid": guid}) is None: pda_collection.insert_one({"guid": guid, "pdakey": dict(r.json()).get("pdakey")})
+    return r.json()
+
+@app.post("/pda/setpdakey", tags=["PDA"])
+async def set_pda(guid, name):
+    pda_key = str(int(time.time() // 1)) + '-' + ''.join(random.choice(string.digits + string.ascii_lowercase) for i in range(8))
+    r = await client.post(f"{base_url}/pda/setpdakey",
+                          json={"apikey": "", "appid": "Образование Псковской области",
+                                "name": name,"sysguid": guid, "pdakey": pda_key},
+                          headers=Headers({"Content-Type": "application/json"}))
+    if dict(r.json()).get("error") == "":
+        raise HTTPException(404, "Ошибка")
+    return r.json()
 
 @app.get("/auth/get_key", tags=["auth"])
 async def GetKey(request: Request):
@@ -305,15 +294,29 @@ def job(time: int, type: str):
     )
     messaging.send(message)
 
+@app.post("/images/{uuid}", tags=["Images"])
+async def create_upload_file(uuid: str, file: UploadFile = File(...)):
+    contents = await file.read()
+    with open("/home/adlem/DiaryBackend/" + uuid + ".jpg", "wb") as f:
+        f.write(contents)
+    return {"filename": file}
 
+
+@app.get("/images/{uuid}", tags=["Images"])
+async def show_image(uuid: str):
+    if os.path.isfile("/home/adlem/DiaryBackend/" + uuid + ".jpg"):
+        return FileResponse(
+            "/home/adlem/DiaryBackend/" + uuid + ".jpg")
+    else:
+        return None
 
 #schedule.every(1).day.at("19:44").do(print, (18))
 #schedule.every(30).seconds.do(job, (18))
-#job(18)
-scheduler.add_job(job, trigger='cron', hour=18, minute=0, args=(18, "kr"))
+job(18, "kr")
+#scheduler.add_job(job, trigger='cron', hour=18, minute=0, args=(18, "kr"))
 if __name__ == '__main__':
     # create process instance and set the target to run function.
     # use daemon mode to stop the process whenever the program stopped.
     scheduler.start()
-    uvicorn.run(app, host="0.0.0.0", port=8090, root_path="/api")
+    uvicorn.run(app, host="0.0.0.0", port=8090, root_path="")
     pass
