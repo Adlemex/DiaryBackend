@@ -286,7 +286,7 @@ async def NotifyKrDelete(token: str, time: int = 18):
 
 
 @app.get("/notify/marks", tags=["notify"])
-async def NotifyMarksCreate(token: str, time: int = 18):
+async def NotifyMarksCreate(token: str, time: int = 20):
     #"""if notify_collection.find_one({"token": token}) is not None: raise HTTPException(400)
     #res = notify_collection.update_one({"token": token}, {"$set": {"kr": time}})
     #return "success" """
@@ -296,7 +296,7 @@ async def NotifyMarksCreate(token: str, time: int = 18):
 
 
 @app.delete("/notify/marks", tags=["notify"])
-async def NotifyMarksDelete(token: str, time: int = 18):
+async def NotifyMarksDelete(token: str, time: int = 20):
     #"""if notify_collection.find_one({"token": token}) is not None: raise HTTPException(400)
     #res = notify_collection.update_one({"token": token}, {"$set": {"kr": time}})
     #return "success" """
