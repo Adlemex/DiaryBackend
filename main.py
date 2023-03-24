@@ -265,7 +265,7 @@ async def TgLogIn(tg_id: int, sign: str):
 
 
 @app.get("/notify/kr", tags=["notify"])
-async def NotifyKr(token: str, time: int = 18):
+async def NotifyKrCreate(token: str, time: int = 18):
     #"""if notify_collection.find_one({"token": token}) is not None: raise HTTPException(400)
     #res = notify_collection.update_one({"token": token}, {"$set": {"kr": time}})
     #return "success" """
@@ -275,7 +275,7 @@ async def NotifyKr(token: str, time: int = 18):
 
 
 @app.delete("/notify/kr", tags=["notify"])
-async def NotifyKr(token: str, time: int = 18):
+async def NotifyKrDelete(token: str, time: int = 18):
     #"""if notify_collection.find_one({"token": token}) is not None: raise HTTPException(400)
     #res = notify_collection.update_one({"token": token}, {"$set": {"kr": time}})
     #return "success" """
@@ -284,12 +284,32 @@ async def NotifyKr(token: str, time: int = 18):
     if response.failure_count > 0: raise HTTPException(400, "Неверный токен")
 
 
+
+@app.get("/notify/marks", tags=["notify"])
+async def NotifyMarksCreate(token: str, time: int = 18):
+    #"""if notify_collection.find_one({"token": token}) is not None: raise HTTPException(400)
+    #res = notify_collection.update_one({"token": token}, {"$set": {"kr": time}})
+    #return "success" """
+    topic = "marks_" + str(time)
+    response = messaging.subscribe_to_topic(token, topic)
+    if response.failure_count > 0: raise HTTPException(400, "Неверный токен")
+
+
+@app.delete("/notify/marks", tags=["notify"])
+async def NotifyMarksDelete(token: str, time: int = 18):
+    #"""if notify_collection.find_one({"token": token}) is not None: raise HTTPException(400)
+    #res = notify_collection.update_one({"token": token}, {"$set": {"kr": time}})
+    #return "success" """
+    topic = "marks_" + str(time)
+    response = messaging.unsubscribe_from_topic(token, topic)
+    if response.failure_count > 0: raise HTTPException(400, "Неверный токен")
+
+
 def job(time: int, type: str):
-    #items = list(notify_collection.find({"kr":  time}))
-    topic = "kr_" + str(time)
+    topic = type + "_" + str(time)
     print(topic)
     message = messaging.Message(
-        data={"type": "kr"},
+        data={"type": type},
         topic=topic
     )
     messaging.send(message)
@@ -313,6 +333,7 @@ async def show_image(uuid: str):
 #schedule.every(1).day.at("19:44").do(print, (18))
 #schedule.every(30).seconds.do(job, (18))
 job(18, "kr")
+job(20, "marks")
 #scheduler.add_job(job, trigger='cron', hour=18, minute=0, args=(18, "kr"))
 if __name__ == '__main__':
     # create process instance and set the target to run function.
