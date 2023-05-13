@@ -14,6 +14,8 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
 from apscheduler.schedulers.background import BackgroundScheduler
 import base64
+
+from models.CheckList import Lesson, CheckList
 from models.Q import Q
 from models.TgGetCode import TgGetCode
 from secret import secretize
@@ -26,6 +28,7 @@ auth_collection: Collection = client.diary.auth
 pda_collection: Collection = client.diary.pda
 notify_collection: Collection = client.diary.notify
 tg_collection: Collection = client.diary.tg
+checklist_collection: Collection = client.diary.check_list
 
 import firebase_admin
 from firebase_admin import credentials, messaging
@@ -310,7 +313,7 @@ def job(time: int, type: str):
     print(topic)
     message = messaging.Message(
         data={"type": type},
-        topic=topic
+        topic=topic,
     )
     messaging.send(message)
 
@@ -330,14 +333,29 @@ async def show_image(uuid: str):
     else:
         return None
 
+@app.post("/checklist/{uuid}")
+async def set_checklist(uuid: str, date: str, lessons: list[Lesson]):
+    query = {"uuid": uuid, "date": date}
+    new = CheckList(uuid=uuid, date=date, lessons=lessons).dict()
+    if checklist_collection.find_one(query) is not None:
+        checklist_collection.update_one(query, new)
+    else: checklist_collection.insert_one(new)
+    return {"success": True}
+@app.get("/checklist/{uuid}")
+async def set_checklist(uuid: str, date: str):
+    query = {"uuid": uuid, "date": date}
+    finded = checklist_collection.find_one(query)
+    if finded is not None:
+        return CheckList.parse_raw(finded)
+    else: return []
+
 #schedule.every(1).day.at("19:44").do(print, (18))
 #schedule.every(30).seconds.do(job, (18))
-job(18, "kr")
-job(20, "marks")
+#job(20, "marks")
 #scheduler.add_job(job, trigger='cron', hour=18, minute=0, args=(18, "kr"))
 if __name__ == '__main__':
     # create process instance and set the target to run function.
     # use daemon mode to stop the process whenever the program stopped.
-    scheduler.start()
-    uvicorn.run(app, host="0.0.0.0", port=8090, root_path="")
+    #scheduler.start()
+    uvicorn.run(app, host="0.0.0.0", port=8090, root_path="/api")
     pass
